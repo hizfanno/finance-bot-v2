@@ -6,10 +6,21 @@ import os
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+print("DATABASE_URL:", DATABASE_URL)
 
-print("DATABASE_URL:", DATABASE_URL)   # debug dulu
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True
+)
 
-engine = create_engine(DATABASE_URL)
+# TEST CONNECTION
+try:
+    conn = engine.connect()
+    print("DB SUCCESS CONNECTED!")
+    conn.close()
+except Exception as e:
+    print("DB ERROR:", e)
+    raise
 
 SessionLocal = sessionmaker(
     autocommit=False,
@@ -18,5 +29,3 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
-
-print("Database connected!")
