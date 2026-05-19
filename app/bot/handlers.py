@@ -29,7 +29,9 @@ async def reject_user(update):
     await update.message.reply_text("⛔ Unauthorized access.")
 
 
+# =========================
 # Conversation states
+# =========================
 AMOUNT, CATEGORY, DESCRIPTION = range(3)
 
 
@@ -222,3 +224,105 @@ async def list_expenses(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message,
         reply_markup=get_main_menu()
     )
+
+
+# =========================
+# DAILY SUMMARY
+# =========================
+async def daily_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update):
+        return await reject_user(update)
+
+    telegram_id = str(update.effective_user.id)
+    summary = get_daily_summary(telegram_id)
+
+    if summary["count"] == 0:
+        await update.message.reply_text(
+            "📅 No transactions today.",
+            reply_markup=get_summary_menu()
+        )
+        return
+
+    message = (
+        f"📅 Today Summary\n\n"
+        f"💰 Total: Rp {summary['total']:,.0f}\n"
+        f"🧾 Transactions: {summary['count']}\n\n"
+        f"Breakdown:\n"
+    )
+
+    for category, amount in summary["categories"]:
+        message += f"• {category}: Rp {amount:,.0f}\n"
+
+    await update.message.reply_text(
+        message,
+        reply_markup=get_summary_menu()
+    )
+
+
+# =========================
+# MONTHLY SUMMARY
+# =========================
+async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update):
+        return await reject_user(update)
+
+    telegram_id = str(update.effective_user.id)
+    summary = get_monthly_summary(telegram_id)
+
+    if summary["count"] == 0:
+        await update.message.reply_text(
+            "📆 No transactions this month.",
+            reply_markup=get_summary_menu()
+        )
+        return
+
+    message = (
+        f"📆 This Month Summary\n\n"
+        f"💰 Total: Rp {summary['total']:,.0f}\n"
+        f"🧾 Transactions: {summary['count']}\n\n"
+        f"Breakdown:\n"
+    )
+
+    for category, amount in summary["categories"]:
+        message += f"• {category}: Rp {amount:,.0f}\n"
+
+    await update.message.reply_text(
+        message,
+        reply_markup=get_summary_menu()
+    )
+
+
+# =========================
+# BUTTON HANDLER
+# =========================
+async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update):
+        return await reject_user(update)
+
+    text = update.message.text
+
+    if text == "➕ Add":
+        return await add_expense_start(update, context)
+
+    elif text == "📋 List":
+        await list_expenses(update, context)
+
+    elif text == "📊 Summary":
+        await update.message.reply_text(
+            "📊 Choose summary type:",
+            reply_markup=get_summary_menu()
+        )
+
+    elif text == "📅 Daily":
+        await daily_summary(update, context)
+
+    elif text == "📆 Monthly":
+        await monthly_summary(update, context)
+
+    elif text == "🏠 Back":
+        await update.message.reply_text(
+            "🏠 Back to main menu:",
+            reply_markup=get_main_menu()
+        )
+
+    return ConversationHandler.END
