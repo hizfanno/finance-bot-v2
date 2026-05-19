@@ -1,4 +1,4 @@
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler
 from app.services.transaction_service import add_transaction, get_transactions
 
@@ -30,7 +30,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ADD FLOW STEP 1
 # =========================
 async def add_expense_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("💰 Enter amount:")
+    await update.message.reply_text(
+        "💰 Enter amount:",
+        reply_markup=ReplyKeyboardRemove()
+    )
     return AMOUNT
 
 
@@ -44,9 +47,9 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         category_keyboard = [
             ["🍔 Food", "☕ Coffee"],
-            ["🚗 Transport", "🛍 Lifestyle"],
+            ["🚗 Transport", "🛍 Shopping"],
             ["🏠 Needs", "🎉 Entertainment"],
-            ["📦 Misc"]
+            ["💼 Work", "📦 Misc"]
         ]
 
         reply_markup = ReplyKeyboardMarkup(
@@ -63,7 +66,9 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CATEGORY
 
     except ValueError:
-        await update.message.reply_text("❌ Please enter a valid number.")
+        await update.message.reply_text(
+            "❌ Please enter a valid number."
+        )
         return AMOUNT
 
 
@@ -71,14 +76,25 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ADD FLOW STEP 3
 # =========================
 async def get_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    category = update.message.text.replace("🍔 ", "").replace("☕ ", "") \
-                                  .replace("🚗 ", "").replace("🛍 ", "") \
-                                  .replace("🏠 ", "").replace("🎉 ", "") \
-                                  .replace("📦 ", "")
+    category = (
+        update.message.text
+        .replace("🍔 ", "")
+        .replace("☕ ", "")
+        .replace("🚗 ", "")
+        .replace("🛍 ", "")
+        .replace("🏠 ", "")
+        .replace("🎉 ", "")
+        .replace("💼 ", "")
+        .replace("📦 ", "")
+    )
 
     context.user_data["category"] = category
 
-    await update.message.reply_text("📝 Enter description:")
+    await update.message.reply_text(
+        "📝 Enter description:",
+        reply_markup=ReplyKeyboardRemove()
+    )
+
     return DESCRIPTION
 
 
@@ -98,7 +114,16 @@ async def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
         description=description
     )
 
-    # Return main menu keyboard
+    # Remove old keyboard and show save result
+    await update.message.reply_text(
+        f"✅ Expense saved!\n\n"
+        f"💰 Amount: Rp {transaction.amount:,.0f}\n"
+        f"📂 Category: {transaction.category}\n"
+        f"📝 Description: {transaction.description}",
+        reply_markup=ReplyKeyboardRemove()
+    )
+
+    # Show main menu again
     reply_keyboard = [
         ["➕ Add", "📋 List"],
         ["📊 Summary"]
@@ -110,10 +135,7 @@ async def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text(
-        f"✅ Expense saved!\n\n"
-        f"💰 Amount: Rp {transaction.amount:,.0f}\n"
-        f"📂 Category: {transaction.category}\n"
-        f"📝 Description: {transaction.description}",
+        "🏠 Back to main menu:",
         reply_markup=reply_markup
     )
 
