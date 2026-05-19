@@ -1,28 +1,50 @@
 from telegram import Update, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler
-from app.services.transaction_service import add_transaction, get_transactions
+
+from app.services.transaction_service import (
+    add_transaction,
+    get_transactions,
+    get_daily_summary,
+    get_monthly_summary
+)
 
 # Conversation states
 AMOUNT, CATEGORY, DESCRIPTION = range(3)
 
 
 # =========================
-# START MENU
+# MAIN MENU
 # =========================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    reply_keyboard = [
-        ["➕ Add", "📋 List"],
-        ["📊 Summary"]
-    ]
-
-    reply_markup = ReplyKeyboardMarkup(
-        reply_keyboard,
+def get_main_menu():
+    return ReplyKeyboardMarkup(
+        [
+            ["➕ Add", "📋 List"],
+            ["📊 Summary"]
+        ],
         resize_keyboard=True
     )
 
+
+# =========================
+# SUMMARY MENU
+# =========================
+def get_summary_menu():
+    return ReplyKeyboardMarkup(
+        [
+            ["📅 Daily", "📆 Monthly"],
+            ["🏠 Back"]
+        ],
+        resize_keyboard=True
+    )
+
+
+# =========================
+# START MENU
+# =========================
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🚀 Finance Bot Ready!\nChoose a menu:",
-        reply_markup=reply_markup
+        reply_markup=get_main_menu()
     )
 
 
@@ -66,9 +88,7 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return CATEGORY
 
     except ValueError:
-        await update.message.reply_text(
-            "❌ Please enter a valid number."
-        )
+        await update.message.reply_text("❌ Please enter a valid number.")
         return AMOUNT
 
 
@@ -114,7 +134,6 @@ async def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
         description=description
     )
 
-    # Remove old keyboard and show save result
     await update.message.reply_text(
         f"✅ Expense saved!\n\n"
         f"💰 Amount: Rp {transaction.amount:,.0f}\n"
@@ -123,20 +142,9 @@ async def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=ReplyKeyboardRemove()
     )
 
-    # Show main menu again
-    reply_keyboard = [
-        ["➕ Add", "📋 List"],
-        ["📊 Summary"]
-    ]
-
-    reply_markup = ReplyKeyboardMarkup(
-        reply_keyboard,
-        resize_keyboard=True
-    )
-
     await update.message.reply_text(
         "🏠 Back to main menu:",
-        reply_markup=reply_markup
+        reply_markup=get_main_menu()
     )
 
     return ConversationHandler.END
@@ -150,7 +158,10 @@ async def list_expenses(update: Update, context: ContextTypes.DEFAULT_TYPE):
     transactions = get_transactions(telegram_id)
 
     if not transactions:
-        await update.message.reply_text("📭 No transactions yet.")
+        await update.message.reply_text(
+            "📭 No transactions yet.",
+            reply_markup=get_main_menu()
+        )
         return
 
     message = "📋 Recent Transactions:\n\n"
@@ -163,7 +174,70 @@ async def list_expenses(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"────────────\n"
         )
 
-    await update.message.reply_text(message)
+    await update.message.reply_text(
+        message,
+        reply_markup=get_main_menu()
+    )
+
+
+# =========================
+# DAILY SUMMARY
+# =========================
+async def daily_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = str(update.effective_user.id)
+    summary = get_daily_summary(telegram_id)
+
+    if summary["count"] == 0:
+        await update.message.reply_text(
+            "📅 No transactions today.",
+            reply_markup=get_summary_menu()
+        )
+        return
+
+    message = (
+        f"📅 Today Summary\n\n"
+        f"💰 Total: Rp {summary['total']:,.0f}\n"
+        f"🧾 Transactions: {summary['count']}\n\n"
+        f"Breakdown:\n"
+    )
+
+    for category, amount in summary["categories"]:
+        message += f"• {category}: Rp {amount:,.0f}\n"
+
+    await update.message.reply_text(
+        message,
+        reply_markup=get_summary_menu()
+    )
+
+
+# =========================
+# MONTHLY SUMMARY
+# =========================
+async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    telegram_id = str(update.effective_user.id)
+    summary = get_monthly_summary(telegram_id)
+
+    if summary["count"] == 0:
+        await update.message.reply_text(
+            "📆 No transactions this month.",
+            reply_markup=get_summary_menu()
+        )
+        return
+
+    message = (
+        f"📆 This Month Summary\n\n"
+        f"💰 Total: Rp {summary['total']:,.0f}\n"
+        f"🧾 Transactions: {summary['count']}\n\n"
+        f"Breakdown:\n"
+    )
+
+    for category, amount in summary["categories"]:
+        message += f"• {category}: Rp {amount:,.0f}\n"
+
+    await update.message.reply_text(
+        message,
+        reply_markup=get_summary_menu()
+    )
 
 
 # =========================
@@ -180,7 +254,20 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "📊 Summary":
         await update.message.reply_text(
-            "📊 Summary feature coming soon 🚧"
+            "📊 Choose summary type:",
+            reply_markup=get_summary_menu()
+        )
+
+    elif text == "📅 Daily":
+        await daily_summary(update, context)
+
+    elif text == "📆 Monthly":
+        await monthly_summary(update, context)
+
+    elif text == "🏠 Back":
+        await update.message.reply_text(
+            "🏠 Back to main menu:",
+            reply_markup=get_main_menu()
         )
 
     return ConversationHandler.END

@@ -1,48 +1,128 @@
-from sqlalchemy.orm import Session
 from app.database.connection import SessionLocal
 from app.models.transaction import Transaction
+from sqlalchemy import func
+from datetime import date
 
 
-def add_transaction(telegram_id, amount, category, description=None):
-    db: Session = SessionLocal()
+# =========================
+# ADD TRANSACTION
+# =========================
+def add_transaction(telegram_id, amount, category, description):
+    db = SessionLocal()
 
-    try:
-        new_transaction = Transaction(
-            telegram_id=telegram_id,
-            amount=amount,
-            category=category,
-            description=description
-        )
+    transaction = Transaction(
+        telegram_id=telegram_id,
+        amount=amount,
+        category=category,
+        description=description
+    )
 
-        db.add(new_transaction)
-        db.commit()
-        db.refresh(new_transaction)
+    db.add(transaction)
+    db.commit()
+    db.refresh(transaction)
+    db.close()
 
-        return new_transaction
-
-    finally:
-        db.close()
+    return transaction
 
 
+# =========================
+# GET ALL TRANSACTIONS
+# =========================
 def get_transactions(telegram_id):
-    db: Session = SessionLocal()
+    db = SessionLocal()
 
-    try:
-        return db.query(Transaction).filter(
-            Transaction.telegram_id == telegram_id
-        ).all()
+    transactions = (
+        db.query(Transaction)
+        .filter(Transaction.telegram_id == telegram_id)
+        .order_by(Transaction.created_at.desc())
+        .all()
+    )
 
-    finally:
-        db.close()
+    db.close()
+    return transactions
 
 
-def get_transactions_by_user(telegram_id):
-    db: Session = SessionLocal()
+# =========================
+# DAILY SUMMARY
+# =========================
+def get_daily_summary(telegram_id):
+    db = SessionLocal()
 
-    try:
-        return db.query(Transaction).filter(
-            Transaction.telegram_id == telegram_id
-        ).all()
+    today = date.today()
 
-    finally:
-        db.close()  
+    transactions = (
+        db.query(Transaction)
+        .filter(
+            Transaction.telegram_id == telegram_id,
+            func.date(Transaction.created_at) == today
+        )
+        .all()
+    )
+
+    total = sum(trx.amount for trx in transactions)
+    count = len(transactions)
+
+    category_summary = (
+        db.query(
+            Transaction.category,
+            func.sum(Transaction.amount)
+        )
+        .filter(
+            Transaction.telegram_id == telegram_id,
+            func.date(Transaction.created_at) == today
+        )
+        .group_by(Transaction.category)
+        .all()
+    )
+
+    db.close()
+
+    return {
+        "total": total,
+        "count": count,
+        "categories": category_summary
+    }
+
+
+# =========================
+# MONTHLY SUMMARY
+# =========================
+def get_monthly_summary(telegram_id):
+    db = SessionLocal()
+
+    today = date.today()
+
+    transactions = (
+        db.query(Transaction)
+        .filter(
+            Transaction.telegram_id == telegram_id,
+            func.extract("month", Transaction.created_at) == today.month,
+            func.extract("year", Transaction.created_at) == today.year
+        )
+        .all()
+    )
+
+    total = sum(trx.amount for trx in transactions)
+    count = len(transactions)
+
+    category_summary = (
+        db.query(
+            Transaction.category,
+            func.sum(Transaction.amount)
+        )
+        .filter(
+            Transaction.telegram_id == telegram_id,
+            func.extract("month", Transaction.created_at) == today.month,
+            func.extract("year", Transaction.created_at) == today.year
+        )
+        .group_by(Transaction.category)
+        .all()
+    )
+
+    db.close()
+
+    return {
+        "total": total,
+        "count": count,
+        "categories": category_summary
+    }
