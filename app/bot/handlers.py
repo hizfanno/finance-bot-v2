@@ -9,12 +9,21 @@ from app.services.transaction_service import (
 
 async def add_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
+        # cek jumlah argumen
+        if len(context.args) < 3:
+            await update.message.reply_text(
+                "Format salah.\nContoh:\n/add 50000 Food Makan siang"
+            )
+            return
+
+        # parsing input
         amount = float(context.args[0])
         category = context.args[1]
         description = " ".join(context.args[2:])
 
         telegram_id = str(update.effective_user.id)
 
+        # simpan ke database
         transaction = add_transaction(
             telegram_id=telegram_id,
             amount=amount,
@@ -22,16 +31,28 @@ async def add_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
             description=description
         )
 
+        # reply sukses
         await update.message.reply_text(
             f"✅ Transaksi tersimpan!\n"
             f"ID: {transaction.id}\n"
-            f"Amount: {transaction.amount}\n"
-            f"Category: {transaction.category}"
+            f"Amount: Rp{transaction.amount}\n"
+            f"Category: {transaction.category}\n"
+            f"Description: {transaction.description}"
         )
 
-    except Exception:
+    except IndexError:
         await update.message.reply_text(
             "Format salah.\nContoh:\n/add 50000 Food Makan siang"
+        )
+
+    except ValueError:
+        await update.message.reply_text(
+            "Amount harus angka.\nContoh:\n/add 50000 Food Makan siang"
+        )
+
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Error sistem:\n{str(e)}"
         )
 
 

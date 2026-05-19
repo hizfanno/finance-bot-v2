@@ -45,4 +45,4 @@ def get_transactions_by_user(telegram_id):
         ).all()
 
     finally:
-        db.close()
+        db.close()  
