@@ -9,15 +9,15 @@ from app.services.transaction_service import (
     add_transaction,
     get_transactions,
     get_daily_summary,
-    get_monthly_summary
+    get_monthly_summary,
+    export_transactions_to_csv
 )
 
 # =========================
 # AUTH
 # =========================
-ALLOWED_USERS = [
-    str(x) for x in os.getenv("ALLOWED_USERS", "").split(",") if x
-]
+raw_users = os.getenv("ALLOWED_USERS", "")
+ALLOWED_USERS = [str(x).strip() for x in raw_users.split(",") if x]
 
 
 def is_authorized(update):
@@ -42,7 +42,7 @@ def get_main_menu():
     return ReplyKeyboardMarkup(
         [
             ["➕ Add", "📋 List"],
-            ["📊 Summary"]
+            ["📊 Summary", "📤 Export CSV"]
         ],
         resize_keyboard=True
     )
@@ -211,7 +211,7 @@ async def list_expenses(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     message = "📋 Recent Transactions:\n\n"
 
-    for trx in transactions[-10:]:
+    for trx in transactions[:10]:
         message += (
             f"👤 {trx.username}\n"
             f"💰 Rp {trx.amount:,.0f}\n"
@@ -293,6 +293,27 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
+# EXPORT CSV
+# =========================
+async def export_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update):
+        return await reject_user(update)
+
+    telegram_id = str(update.effective_user.id)
+
+    filename = export_transactions_to_csv(telegram_id)
+
+    with open(filename, "rb") as file:
+        await update.message.reply_document(
+            document=file,
+            filename=filename,
+            caption="📤 Here is your transaction CSV"
+        )
+
+    os.remove(filename)
+
+
+# =========================
 # BUTTON HANDLER
 # =========================
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -318,6 +339,9 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif text == "📆 Monthly":
         await monthly_summary(update, context)
+
+    elif text == "📤 Export CSV":
+        await export_csv(update, context)
 
     elif text == "🏠 Back":
         await update.message.reply_text(

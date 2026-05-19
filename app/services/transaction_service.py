@@ -1,7 +1,10 @@
-from app.database.connection import SessionLocal
-from app.models.transaction import Transaction
+import csv
+import os
 from sqlalchemy import func
 from datetime import date
+
+from app.database.connection import SessionLocal
+from app.models.transaction import Transaction
 
 
 # =========================
@@ -127,3 +130,44 @@ def get_monthly_summary(telegram_id):
         "count": count,
         "categories": category_summary
     }
+
+
+# =========================
+# EXPORT CSV
+# =========================
+def export_transactions_to_csv(telegram_id):
+    db = SessionLocal()
+
+    transactions = (
+        db.query(Transaction)
+        .filter(Transaction.telegram_id == telegram_id)
+        .order_by(Transaction.created_at.desc())
+        .all()
+    )
+
+    filename = f"transactions_{telegram_id}.csv"
+
+    with open(filename, mode="w", newline="", encoding="utf-8") as file:
+        writer = csv.writer(file)
+
+        writer.writerow([
+            "ID",
+            "Username",
+            "Amount",
+            "Category",
+            "Description",
+            "Created At"
+        ])
+
+        for trx in transactions:
+            writer.writerow([
+                trx.id,
+                trx.username,
+                trx.amount,
+                trx.category,
+                trx.description,
+                trx.created_at
+            ])
+
+    db.close()
+    return filename
