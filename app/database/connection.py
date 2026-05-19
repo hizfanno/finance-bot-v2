@@ -5,18 +5,13 @@ import os
 
 load_dotenv()
 
-# Base dulu
-Base = declarative_base()
-
 # Ambil DATABASE_URL dari Railway
 DATABASE_URL = os.getenv("DATABASE_URL")
-print("DATABASE_URL RAW =", repr(DATABASE_URL))
 
-# Validasi kalau kosong
 if not DATABASE_URL:
-    raise ValueError("DATABASE_URL is missing!")
+    raise ValueError("DATABASE_URL missing!")
 
-# SQLAlchemy Railway fix
+# Fix SQLAlchemy
 if DATABASE_URL.startswith("postgresql://"):
     DATABASE_URL = DATABASE_URL.replace(
         "postgresql://",
@@ -24,18 +19,16 @@ if DATABASE_URL.startswith("postgresql://"):
         1
     )
 
+print("DATABASE_URL =", DATABASE_URL)
+
+# Base
+Base = declarative_base()
+
 # Engine
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True
 )
-
-# Import model setelah Base dibuat
-from app.models.transaction import Transaction
-
-# Auto create tables
-Base.metadata.create_all(bind=engine)
-print("Tables created!")
 
 # Session
 SessionLocal = sessionmaker(
@@ -44,11 +37,11 @@ SessionLocal = sessionmaker(
     bind=engine
 )
 
-# Test connection
-try:
-    conn = engine.connect()
-    print("DB SUCCESS CONNECTED!")
-    conn.close()
-except Exception as e:
-    print("DB ERROR:", e)
-    raise
+
+# Dependency function
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

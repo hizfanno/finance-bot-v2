@@ -1,7 +1,6 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
+from sqlalchemy import Column, Integer, Float, String, DateTime
 from datetime import datetime
-
-from app.models.base import Base
+from app.database.connection import Base
 
 
 class Transaction(Base):
@@ -11,5 +10,5 @@ class Transaction(Base):
     telegram_id = Column(String, nullable=False)
     amount = Column(Float, nullable=False)
     category = Column(String, nullable=False)
-    description = Column(String)
+    description = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.now)

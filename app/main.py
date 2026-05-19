@@ -1,73 +1,53 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-from telegram.ext import Application
-from telegram.ext import CommandHandler
-from app.bot.handlers import add_expense
+from app.database.connection import engine, Base
+from app.models.transaction import Transaction
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from app.bot.handlers import (
+    start,
+    add_expense,
+    button_handler,
+    list_transactions,
+    daily_summary,
+    monthly_summary
+)
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
+
+# FastAPI app
 app = FastAPI()
 
+# Create DB tables
+Base.metadata.create_all(bind=engine)
+print("Tables created!")
 
-# temporary storage
-transactions = []
-
-
-class Transaction(BaseModel):
-    amount: int
-    category: str
-    note: str
-
-
+# Health check endpoints
 @app.get("/")
 def root():
     return {"message": "Finance Bot v2 is running"}
-
 
 @app.get("/health")
 def health():
     return {"status": "healthy"}
 
+# Telegram bot startup
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-@app.post("/transaction")
-def create_transaction(data: Transaction):
+telegram_app = Application.builder().token(TOKEN).build()
 
-    transactions.append(data.model_dump())
+# Commands
+telegram_app.add_handler(CommandHandler("start", start))
+telegram_app.add_handler(CommandHandler("add", add_expense))
+telegram_app.add_handler(CommandHandler("list", list_transactions))
+telegram_app.add_handler(CommandHandler("daily", daily_summary))
+telegram_app.add_handler(CommandHandler("monthly", monthly_summary))
 
-    return {
-        "status": "success",
-        "data": data
-    }
-
-@app.put("/transaction/{index}")
-def update_transaction(index: int, data: Transaction):
-
-    if index >= len(transactions):
-        return {"error": "transaction not found"}
-
-    transactions[index] = data.model_dump()
-
-    return {
-        "status": "updated",
-        "data": transactions[index]
-    }
-
-@app.delete("/transaction/{index}")
-def delete_transaction(index: int):
-
-    if index >= len(transactions):
-        return {"error": "transaction not found"}
-
-    deleted_data = transactions.pop(index)
-
-    return {
-        "status": "deleted",
-        "data": deleted_data
-    }
+# Button handler
+telegram_app.add_handler(CallbackQueryHandler(button_handler))
 
 
-@app.get("/transactions")
-def get_transactions():
-
-    return {
-        "total": len(transactions),
-        "data": transactions
-    }
+# Run bot when file executed directly
+if __name__ == "__main__":
+    print("Bot started...")
+    telegram_app.run_polling()
