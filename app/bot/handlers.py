@@ -1,29 +1,20 @@
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from app.services.transaction_service import (
     add_transaction,
-    get_transactions_by_user
+    get_transactions
 )
 
 
 async def add_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        # cek jumlah argumen
-        if len(context.args) < 3:
-            await update.message.reply_text(
-                "Format salah.\nContoh:\n/add 50000 Food Makan siang"
-            )
-            return
-
-        # parsing input
         amount = float(context.args[0])
         category = context.args[1]
         description = " ".join(context.args[2:])
 
         telegram_id = str(update.effective_user.id)
 
-        # simpan ke database
         transaction = add_transaction(
             telegram_id=telegram_id,
             amount=amount,
@@ -31,23 +22,11 @@ async def add_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
             description=description
         )
 
-        # reply sukses
         await update.message.reply_text(
             f"✅ Transaksi tersimpan!\n"
             f"ID: {transaction.id}\n"
-            f"Amount: Rp{transaction.amount}\n"
-            f"Category: {transaction.category}\n"
-            f"Description: {transaction.description}"
-        )
-
-    except IndexError:
-        await update.message.reply_text(
-            "Format salah.\nContoh:\n/add 50000 Food Makan siang"
-        )
-
-    except ValueError:
-        await update.message.reply_text(
-            "Amount harus angka.\nContoh:\n/add 50000 Food Makan siang"
+            f"Amount: {transaction.amount}\n"
+            f"Category: {transaction.category}"
         )
 
     except Exception as e:
@@ -59,15 +38,53 @@ async def add_expense(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def list_expenses(update: Update, context: ContextTypes.DEFAULT_TYPE):
     telegram_id = str(update.effective_user.id)
 
-    transactions = get_transactions_by_user(telegram_id)
+    transactions = get_transactions(telegram_id)
 
     if not transactions:
         await update.message.reply_text("Belum ada transaksi.")
         return
 
-    message = "Daftar transaksi:\n"
+    message = "📋 Daftar Transaksi:\n\n"
 
-    for trx in transactions:
-        message += f"- {trx.category}: Rp{trx.amount} ({trx.description})\n"
+    for tx in transactions:
+        message += (
+            f"ID: {tx.id}\n"
+            f"Rp{tx.amount} | {tx.category}\n"
+            f"{tx.description}\n\n"
+        )
 
     await update.message.reply_text(message)
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [
+        ["➕ Add", "📋 List"],
+        ["📊 Summary"]
+    ]
+
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True
+    )
+
+    await update.message.reply_text(
+        "🚀 Finance Bot Ready!\nPilih menu:",
+        reply_markup=reply_markup
+    )
+
+
+async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+
+    if text == "➕ Add":
+        await update.message.reply_text(
+            "Gunakan format:\n/add 5000 coffee ngopi"
+        )
+
+    elif text == "📋 List":
+        await list_expenses(update, context)
+
+    elif text == "📊 Summary":
+        await update.message.reply_text(
+            "Summary feature coming soon 🚧"
+        )
