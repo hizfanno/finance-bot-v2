@@ -7,11 +7,12 @@ from datetime import date
 # =========================
 # ADD TRANSACTION
 # =========================
-def add_transaction(telegram_id, amount, category, description):
+def add_transaction(telegram_id, username, amount, category, description):
     db = SessionLocal()
 
     transaction = Transaction(
         telegram_id=telegram_id,
+        username=username,
         amount=amount,
         category=category,
         description=description
