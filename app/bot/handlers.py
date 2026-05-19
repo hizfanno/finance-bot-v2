@@ -10,7 +10,8 @@ from app.services.transaction_service import (
     get_transactions,
     get_daily_summary,
     get_monthly_summary,
-    export_transactions_to_csv
+    export_all_transactions_to_csv,
+    export_current_month_to_csv
 )
 
 # =========================
@@ -30,7 +31,7 @@ async def reject_user(update):
 
 
 # =========================
-# Conversation states
+# STATES
 # =========================
 AMOUNT, CATEGORY, DESCRIPTION = range(3)
 
@@ -42,7 +43,7 @@ def get_main_menu():
     return ReplyKeyboardMarkup(
         [
             ["➕ Add", "📋 List"],
-            ["📊 Summary", "📤 Export CSV"]
+            ["📊 Summary", "📤 Export"],
         ],
         resize_keyboard=True
     )
@@ -54,7 +55,7 @@ def get_main_menu():
 def get_summary_menu():
     return ReplyKeyboardMarkup(
         [
-            ["📅 Daily", "📆 Monthly"],
+            ["📅 Today", "📆 This Month"],
             ["🏠 Back"]
         ],
         resize_keyboard=True
@@ -62,7 +63,20 @@ def get_summary_menu():
 
 
 # =========================
-# START MENU
+# EXPORT MENU
+# =========================
+def get_export_menu():
+    return ReplyKeyboardMarkup(
+        [
+            ["📅 Current Month", "📂 All Data"],
+            ["🏠 Back"]
+        ],
+        resize_keyboard=True
+    )
+
+
+# =========================
+# START
 # =========================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
@@ -75,7 +89,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# ADD FLOW STEP 1
+# ADD FLOW
 # =========================
 async def add_expense_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
@@ -88,9 +102,6 @@ async def add_expense_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return AMOUNT
 
 
-# =========================
-# ADD FLOW STEP 2
-# =========================
 async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         return await reject_user(update)
@@ -124,9 +135,6 @@ async def get_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return AMOUNT
 
 
-# =========================
-# ADD FLOW STEP 3
-# =========================
 async def get_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         return await reject_user(update)
@@ -153,9 +161,6 @@ async def get_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return DESCRIPTION
 
 
-# =========================
-# SAVE TRANSACTION
-# =========================
 async def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         return await reject_user(update)
@@ -180,8 +185,7 @@ async def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ Expense saved!\n\n"
         f"💰 Amount: Rp {transaction.amount:,.0f}\n"
         f"📂 Category: {transaction.category}\n"
-        f"📝 Description: {transaction.description}",
-        reply_markup=ReplyKeyboardRemove()
+        f"📝 Description: {transaction.description}"
     )
 
     await update.message.reply_text(
@@ -193,7 +197,7 @@ async def get_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# LIST TRANSACTIONS
+# LIST
 # =========================
 async def list_expenses(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
@@ -217,6 +221,7 @@ async def list_expenses(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💰 Rp {trx.amount:,.0f}\n"
             f"📂 {trx.category}\n"
             f"📝 {trx.description}\n"
+            f"📅 {trx.created_at.strftime('%d-%m-%Y %H:%M')}\n"
             f"────────────\n"
         )
 
@@ -238,13 +243,13 @@ async def daily_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if summary["count"] == 0:
         await update.message.reply_text(
-            "📅 No transactions today.",
+            f"📅 No transactions on {summary['date']}",
             reply_markup=get_summary_menu()
         )
         return
 
     message = (
-        f"📅 Today Summary\n\n"
+        f"📅 Daily Summary ({summary['date']})\n\n"
         f"💰 Total: Rp {summary['total']:,.0f}\n"
         f"🧾 Transactions: {summary['count']}\n\n"
         f"Breakdown:\n"
@@ -271,13 +276,13 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if summary["count"] == 0:
         await update.message.reply_text(
-            "📆 No transactions this month.",
+            f"📆 No transactions in {summary['month']} {summary['year']}",
             reply_markup=get_summary_menu()
         )
         return
 
     message = (
-        f"📆 This Month Summary\n\n"
+        f"📆 {summary['month']} {summary['year']} Summary\n\n"
         f"💰 Total: Rp {summary['total']:,.0f}\n"
         f"🧾 Transactions: {summary['count']}\n\n"
         f"Breakdown:\n"
@@ -293,28 +298,44 @@ async def monthly_summary(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # =========================
-# EXPORT CSV
+# EXPORTS
 # =========================
-async def export_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def export_current_month(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
         return await reject_user(update)
 
     telegram_id = str(update.effective_user.id)
-
-    filename = export_transactions_to_csv(telegram_id)
+    filename = export_current_month_to_csv(telegram_id)
 
     with open(filename, "rb") as file:
         await update.message.reply_document(
             document=file,
             filename=filename,
-            caption="📤 Here is your transaction CSV"
+            caption="📤 Current month CSV ready!"
+        )
+
+    os.remove(filename)
+
+
+async def export_all(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not is_authorized(update):
+        return await reject_user(update)
+
+    telegram_id = str(update.effective_user.id)
+    filename = export_all_transactions_to_csv(telegram_id)
+
+    with open(filename, "rb") as file:
+        await update.message.reply_document(
+            document=file,
+            filename=filename,
+            caption="📤 Full transaction CSV ready!"
         )
 
     os.remove(filename)
 
 
 # =========================
-# BUTTON HANDLER
+# MENU HANDLER
 # =========================
 async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_authorized(update):
@@ -334,14 +355,23 @@ async def menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_summary_menu()
         )
 
-    elif text == "📅 Daily":
+    elif text == "📅 Today":
         await daily_summary(update, context)
 
-    elif text == "📆 Monthly":
+    elif text == "📆 This Month":
         await monthly_summary(update, context)
 
-    elif text == "📤 Export CSV":
-        await export_csv(update, context)
+    elif text == "📤 Export":
+        await update.message.reply_text(
+            "📤 Choose export type:",
+            reply_markup=get_export_menu()
+        )
+
+    elif text == "📅 Current Month":
+        await export_current_month(update, context)
+
+    elif text == "📂 All Data":
+        await export_all(update, context)
 
     elif text == "🏠 Back":
         await update.message.reply_text(
