@@ -1,0 +1,31 @@
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: financebot_postgres
+
+    environment:
+      POSTGRES_USER: hizfanno_finance
+      POSTGRES_PASSWORD: hizfannofinance123
+      POSTGRES_DB: finance_db
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+
+  api:
+    image: financebot-api
+    container_name: financebot_api
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      - postgres
+
+
+volumes:
+  postgres_data:
